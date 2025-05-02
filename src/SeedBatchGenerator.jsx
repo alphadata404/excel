@@ -15,25 +15,23 @@ function SeedBatchGenerator() {
 
   const parseRawText = () => {
     const entriesParsed = [];
-    const lines = rawText.trim().split(/\n{2,}|\r{2,}/);
+    const lines = rawText.trim().split(/\n|\r/);
 
-    for (const block of lines) {
-      const line = block.replace(/\n|\r/g, " ").trim();
+    for (const line of lines) {
+      const parts = line.trim().split(/[\t,]+|\s{2,}|\s(?=\d{5,})/);
+      if (parts.length !== 4) continue;
 
-      const nameMatch = line.match(/^[A-Z0-9 \(\)&.,'-]+(?=\s+A\/C)/i);
-      const accountMatch = line.match(/A\/C[:\s]*([0-9]{9,18})/i);
-      const ifscMatch = line.match(/IFSC[:\s]*([A-Z]{4}0[A-Z0-9]{6})/i);
-      const amountMatch = line.match(/(?:INR|₹|Rs\.?)[\s]*([\d,\.]+)(?=\s|\/|$)/i);
+      const [name, account, ifsc, amountStr] = parts;
 
-      if (nameMatch && accountMatch && ifscMatch && amountMatch) {
+      if (name && account && ifsc && amountStr) {
         entriesParsed.push({
-          "Beneficiary Name": nameMatch[0].trim(),
-          "Beneficiary Account Number": accountMatch[1],
-          IFSC: ifscMatch[1].toUpperCase(),
+          "Beneficiary Name": name.trim(),
+          "Beneficiary Account Number": account.trim(),
+          IFSC: ifsc.trim().toUpperCase(),
           "Transaction Type": "NEFT",
           "Debit Account Number": "10225297219",
           "Transaction Date": dateStr,
-          Amount: parseAmount(amountMatch[1]),
+          Amount: parseAmount(amountStr),
           Currency: "INR",
           "Beneficiary Email ID": "",
           Remarks: "",
