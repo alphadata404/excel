@@ -10,15 +10,15 @@ function SeedBatchGenerator() {
   const fileName = `SEEDS${today.toLocaleDateString("en-GB", { day: '2-digit', month: 'short' }).toUpperCase().replace(/ /g, "")}001.xlsx`;
 
   const parseAmount = (str) => {
-    let clean = str.replace(/[^\d.kml]/gi, "").toLowerCase();
+    const clean = str.replace(/[^\d.kml]/gi, "").toLowerCase();
     if (clean.includes("l")) return parseFloat(clean) * 100000;
     if (clean.includes("k")) return parseFloat(clean) * 1000;
     return parseFloat(clean.replace(/,/g, "")) || 0;
   };
 
   const parseRawText = () => {
+    const entriesParsed = [];
     const blocks = rawText.trim().split(/\n{2,}|\r{2,}/);
-    const parsed = [];
 
     for (const block of blocks) {
       let name = "", account = "", ifsc = "", amount = "";
@@ -27,21 +27,34 @@ function SeedBatchGenerator() {
       for (const line of lines) {
         const l = line.trim();
 
-        if (/name[:\-]/i.test(l)) name = l.split(/[:\-]/)[1]?.trim();
-        if (/account.*number|a\/c|account no/i.test(l)) account = l.split(/[:\-]/)[1]?.trim().replace(/\D/g, "");
-        if (/ifsc/i.test(l)) ifsc = l.split(/[:\-]/)[1]?.trim().toUpperCase();
-        if (/amount|rs|inr|₹|\d+[kml]/i.test(l)) amount = l.split(/[:\-]/).pop()?.trim();
+        if (/^\D*\d{9,18}\D*$/.test(l)) account ||= l.replace(/\D/g, "");
+        if (/ifsc/i.test(l)) ifsc ||= l.split(/[:\-]/).pop()?.trim().toUpperCase();
+        if (/name|account holder/i.test(l)) name ||= l.split(/[:\-]/)[1]?.trim();
+        if (/account/i.test(l) && !account) account ||= l.split(/[:\-]/)[1]?.replace(/\D/g, "").trim();
+        if (/amount|inr|rs|₹|\d+[kml]/i.test(l)) amount ||= parseAmount(l);
+        if (/^\d{5,}/.test(l)) account ||= l.trim();  // raw account line
+        if (/\d+[kml]?/i.test(l) && !amount) amount ||= parseAmount(l);
+      }
+
+      if (!name) {
+        const tabParts = lines[0].split(/[\t,]+|\s{2,}|\s(?=\d{5,})/);
+        if (tabParts.length === 4) {
+          name = tabParts[0].trim();
+          account = tabParts[1].trim();
+          ifsc = tabParts[2].trim().toUpperCase();
+          amount = parseAmount(tabParts[3]);
+        }
       }
 
       if (name && account && ifsc && amount) {
-        parsed.push({
+        entriesParsed.push({
           "Beneficiary Name": name,
           "Beneficiary Account Number": account,
           IFSC: ifsc,
           "Transaction Type": "NEFT",
           "Debit Account Number": "10225297219",
           "Transaction Date": dateStr,
-          Amount: parseAmount(amount),
+          Amount: amount,
           Currency: "INR",
           "Beneficiary Email ID": "",
           Remarks: "",
@@ -54,10 +67,10 @@ function SeedBatchGenerator() {
       }
     }
 
-    if (parsed.length === 0) {
+    if (entriesParsed.length === 0) {
       alert("Could not auto-detect valid entries. Make sure to include name, A/C, IFSC, and amount.");
     } else {
-      setEntries([...entries, ...parsed]);
+      setEntries([...entries, ...entriesParsed]);
       setRawText("");
     }
   };
