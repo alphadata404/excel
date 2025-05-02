@@ -1,7 +1,4 @@
-
 import { useState } from "react";
-import Button from "./components/ui/button";
-import { Textarea } from "./components/ui/textarea";
 import * as XLSX from "xlsx";
 
 function SeedBatchGenerator() {
@@ -11,52 +8,48 @@ function SeedBatchGenerator() {
   const dateStr = today.toLocaleDateString("en-GB").replace(/\//g, "/");
   const fileName = `SEEDS${today.toLocaleDateString("en-GB", { day: '2-digit', month: 'short' }).toUpperCase().replace(/ /g, "")}001.xlsx`;
 
-  const parseAmount = (amountStr) => {
-    const normalized = amountStr.toLowerCase().replace(/,/g, "").trim();
-    if (normalized.includes("lakh")) return parseFloat(normalized) * 100000;
-    if (normalized.includes("k")) return parseFloat(normalized) * 1000;
-    return parseFloat(normalized);
+  const parseAmount = (text) => {
+    const clean = text.replace(/[^\d\.]/g, "").replace(/\.+/, ".");
+    return parseFloat(clean.replace(/\.(?=\d{3})/, "").replace(/,/g, "")) || 0;
   };
 
   const parseRawText = () => {
-    const lines = rawText.trim().split("\n");
-    const parsed = [];
+    const entriesParsed = [];
+    const lines = rawText.trim().split(/\n{2,}|\r{2,}/);
 
-    for (const line of lines) {
-      const parts = line.split(" - ").map(p => p.trim());
-      if (parts.length !== 4) {
-        alert("Each line must follow the format: Name - Account - IFSC - Amount");
-        return;
+    for (const block of lines) {
+      const line = block.replace(/\n|\r/g, " ").trim();
+
+      const nameMatch = line.match(/^[A-Z0-9 \(\)&.,'-]+(?=\s+A\/C)/i);
+      const accountMatch = line.match(/A\/C[:\s]*([0-9]{9,18})/i);
+      const ifscMatch = line.match(/IFSC[:\s]*([A-Z]{4}0[A-Z0-9]{6})/i);
+      const amountMatch = line.match(/(?:INR|₹|Rs\.?)[\s]*([\d,\.]+)(?=\s|\/|$)/i);
+
+      if (nameMatch && accountMatch && ifscMatch && amountMatch) {
+        entriesParsed.push({
+          "Beneficiary Name": nameMatch[0].trim(),
+          "Beneficiary Account Number": accountMatch[1],
+          IFSC: ifscMatch[1].toUpperCase(),
+          "Transaction Type": "NEFT",
+          "Debit Account Number": "10225297219",
+          "Transaction Date": dateStr,
+          Amount: parseAmount(amountMatch[1]),
+          Currency: "INR",
+          "Beneficiary Email ID": "",
+          Remarks: "",
+          "Custom Header – 1": "",
+          "Custom Header – 2": "",
+          "Custom Header – 3": "",
+          "Custom Header – 4": "",
+          "Custom Header – 5": ""
+        });
       }
-
-      const [name, account, ifsc, amountRaw] = parts;
-      const amount = parseAmount(amountRaw);
-      if (isNaN(amount)) {
-        alert(`Invalid amount on line: ${line}`);
-        return;
-      }
-
-      parsed.push({
-        "Beneficiary Name": name,
-        "Beneficiary Account Number": account,
-        IFSC: ifsc.toUpperCase(),
-        "Transaction Type": "NEFT",
-        "Debit Account Number": "10225297219",
-        "Transaction Date": dateStr,
-        Amount: amount,
-        Currency: "INR",
-        "Beneficiary Email ID": "",
-        Remarks: "",
-        "Custom Header – 1": "",
-        "Custom Header – 2": "",
-        "Custom Header – 3": "",
-        "Custom Header – 4": "",
-        "Custom Header – 5": ""
-      });
     }
 
-    if (parsed.length > 0) {
-      setEntries([...entries, ...parsed]);
+    if (entriesParsed.length === 0) {
+      alert("Could not auto-detect valid entries. Make sure to include name, A/C, IFSC, and amount.");
+    } else {
+      setEntries([...entries, ...entriesParsed]);
       setRawText("");
     }
   };
@@ -66,7 +59,6 @@ function SeedBatchGenerator() {
       alert("No entries to export.");
       return;
     }
-
     const ws = XLSX.utils.json_to_sheet(entries);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
@@ -78,38 +70,46 @@ function SeedBatchGenerator() {
   };
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">SEED Batch Generator</h1>
-      <Textarea
-        className="w-full mb-4"
-        rows={5}
-        placeholder="Paste entries like: Name - Account - IFSC - Amount"
+    <div className="p-4 max-w-5xl mx-auto bg-gray-50 min-h-screen">
+      <div className="bg-indigo-600 text-white rounded-xl p-6 text-center shadow mb-6">
+        <h1 className="text-3xl font-extrabold tracking-wide">OPTIMISM IDFC BULK PAYOUT</h1>
+        <p className="text-sm font-light mt-1">Paste raw bank transfer details and generate Excel instantly</p>
+      </div>
+
+      <textarea
+        className="w-full border border-indigo-300 rounded-lg p-3 mb-4 shadow-sm"
+        rows={6}
+        placeholder="Paste raw text with name, A/C, IFSC, and amount..."
         value={rawText}
         onChange={(e) => setRawText(e.target.value)}
       />
-      <div className="flex gap-4 mb-6">
-        <Button onClick={parseRawText}>Add Entries</Button>
-        <Button onClick={downloadExcel}>Download Excel</Button>
-        <Button variant="destructive" onClick={newBatch}>New Batch</Button>
+
+      <div className="flex flex-wrap gap-4 mb-6">
+        <button onClick={parseRawText} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Add Entries</button>
+        <button onClick={downloadExcel} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Download Excel</button>
+        <button onClick={newBatch} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">New Batch</button>
       </div>
-      <table className="w-full text-sm border">
-        <thead>
-          <tr>
-            {entries.length > 0 && Object.keys(entries[0]).map((header, i) => (
-              <th key={i} className="border px-2 py-1 text-left">{header}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry, idx) => (
-            <tr key={idx} className="border">
-              {Object.values(entry).map((val, i) => (
-                <td key={i} className="border px-2 py-1">{val}</td>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm border border-gray-300 shadow-sm">
+          <thead className="bg-indigo-100">
+            <tr>
+              {entries.length > 0 && Object.keys(entries[0]).map((header, i) => (
+                <th key={i} className="border px-2 py-1 text-left font-medium">{header}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {entries.map((entry, idx) => (
+              <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                {Object.values(entry).map((val, i) => (
+                  <td key={i} className="border px-2 py-1 text-gray-700">{val}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
