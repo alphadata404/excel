@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import * as XLSX from "xlsx";
 
@@ -8,30 +9,39 @@ function SeedBatchGenerator() {
   const dateStr = today.toLocaleDateString("en-GB").replace(/\//g, "/");
   const fileName = `SEEDS${today.toLocaleDateString("en-GB", { day: '2-digit', month: 'short' }).toUpperCase().replace(/ /g, "")}001.xlsx`;
 
-  const parseAmount = (text) => {
-    const clean = text.replace(/[^\d\.]/g, "").replace(/\.+/, ".");
-    return parseFloat(clean.replace(/\.(?=\d{3})/, "").replace(/,/g, "")) || 0;
+  const parseAmount = (str) => {
+    let clean = str.replace(/[^\d.kml]/gi, "").toLowerCase();
+    if (clean.includes("l")) return parseFloat(clean) * 100000;
+    if (clean.includes("k")) return parseFloat(clean) * 1000;
+    return parseFloat(clean.replace(/,/g, "")) || 0;
   };
 
   const parseRawText = () => {
-    const entriesParsed = [];
-    const lines = rawText.trim().split(/\n|\r/);
+    const blocks = rawText.trim().split(/\n{2,}|\r{2,}/);
+    const parsed = [];
 
-    for (const line of lines) {
-      const parts = line.trim().split(/[\t,]+|\s{2,}|\s(?=\d{5,})/);
-      if (parts.length !== 4) continue;
+    for (const block of blocks) {
+      let name = "", account = "", ifsc = "", amount = "";
+      const lines = block.split(/\r?\n|\r/);
 
-      const [name, account, ifsc, amountStr] = parts;
+      for (const line of lines) {
+        const l = line.trim();
 
-      if (name && account && ifsc && amountStr) {
-        entriesParsed.push({
-          "Beneficiary Name": name.trim(),
-          "Beneficiary Account Number": account.trim(),
-          IFSC: ifsc.trim().toUpperCase(),
+        if (/name[:\-]/i.test(l)) name = l.split(/[:\-]/)[1]?.trim();
+        if (/account.*number|a\/c|account no/i.test(l)) account = l.split(/[:\-]/)[1]?.trim().replace(/\D/g, "");
+        if (/ifsc/i.test(l)) ifsc = l.split(/[:\-]/)[1]?.trim().toUpperCase();
+        if (/amount|rs|inr|₹|\d+[kml]/i.test(l)) amount = l.split(/[:\-]/).pop()?.trim();
+      }
+
+      if (name && account && ifsc && amount) {
+        parsed.push({
+          "Beneficiary Name": name,
+          "Beneficiary Account Number": account,
+          IFSC: ifsc,
           "Transaction Type": "NEFT",
           "Debit Account Number": "10225297219",
           "Transaction Date": dateStr,
-          Amount: parseAmount(amountStr),
+          Amount: parseAmount(amount),
           Currency: "INR",
           "Beneficiary Email ID": "",
           Remarks: "",
@@ -44,10 +54,10 @@ function SeedBatchGenerator() {
       }
     }
 
-    if (entriesParsed.length === 0) {
+    if (parsed.length === 0) {
       alert("Could not auto-detect valid entries. Make sure to include name, A/C, IFSC, and amount.");
     } else {
-      setEntries([...entries, ...entriesParsed]);
+      setEntries([...entries, ...parsed]);
       setRawText("");
     }
   };
