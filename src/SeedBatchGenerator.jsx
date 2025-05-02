@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Button } from "./components/ui/button";
+import Button from "./components/ui/button";
 import { Textarea } from "./components/ui/textarea";
 import * as XLSX from "xlsx";
 
@@ -12,7 +12,7 @@ function SeedBatchGenerator() {
   const fileName = `SEEDS${today.toLocaleDateString("en-GB", { day: '2-digit', month: 'short' }).toUpperCase().replace(/ /g, "")}001.xlsx`;
 
   const parseAmount = (amountStr) => {
-    const normalized = amountStr.toLowerCase().replace(/,/g, "");
+    const normalized = amountStr.toLowerCase().replace(/,/g, "").trim();
     if (normalized.includes("lakh")) return parseFloat(normalized) * 100000;
     if (normalized.includes("k")) return parseFloat(normalized) * 1000;
     return parseFloat(normalized);
@@ -20,18 +20,30 @@ function SeedBatchGenerator() {
 
   const parseRawText = () => {
     const lines = rawText.trim().split("\n");
-    const parsed = lines.map(line => {
+    const parsed = [];
+
+    for (const line of lines) {
       const parts = line.split(" - ").map(p => p.trim());
-      if (parts.length < 4) return null;
+      if (parts.length !== 4) {
+        alert("Each line must follow the format: Name - Account - IFSC - Amount");
+        return;
+      }
+
       const [name, account, ifsc, amountRaw] = parts;
-      return {
+      const amount = parseAmount(amountRaw);
+      if (isNaN(amount)) {
+        alert(`Invalid amount on line: ${line}`);
+        return;
+      }
+
+      parsed.push({
         "Beneficiary Name": name,
         "Beneficiary Account Number": account,
         IFSC: ifsc.toUpperCase(),
         "Transaction Type": "NEFT",
         "Debit Account Number": "10225297219",
         "Transaction Date": dateStr,
-        Amount: parseAmount(amountRaw),
+        Amount: amount,
         Currency: "INR",
         "Beneficiary Email ID": "",
         Remarks: "",
@@ -40,13 +52,21 @@ function SeedBatchGenerator() {
         "Custom Header – 3": "",
         "Custom Header – 4": "",
         "Custom Header – 5": ""
-      };
-    }).filter(e => e !== null);
-    setEntries([...entries, ...parsed]);
-    setRawText("");
+      });
+    }
+
+    if (parsed.length > 0) {
+      setEntries([...entries, ...parsed]);
+      setRawText("");
+    }
   };
 
   const downloadExcel = () => {
+    if (entries.length === 0) {
+      alert("No entries to export.");
+      return;
+    }
+
     const ws = XLSX.utils.json_to_sheet(entries);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
