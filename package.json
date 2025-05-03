@@ -1,5 +1,5 @@
 {
-  "name": "optimism-idfc-tested",
+  "name": "optimism-smartparser",
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",

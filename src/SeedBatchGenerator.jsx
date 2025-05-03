@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import * as XLSX from "xlsx";
 
@@ -32,7 +31,7 @@ function SeedBatchGenerator() {
         if (/name|account holder/i.test(l)) name ||= l.split(/[:\-]/)[1]?.trim();
         if (/account/i.test(l) && !account) account ||= l.split(/[:\-]/)[1]?.replace(/\D/g, "").trim();
         if (/amount|inr|rs|₹|\d+[kml]/i.test(l)) amount ||= parseAmount(l);
-        if (/^\d{5,}/.test(l)) account ||= l.trim();  // raw account line
+        if (/^\d{5,}/.test(l)) account ||= l.trim();
         if (/\d+[kml]?/i.test(l) && !amount) amount ||= parseAmount(l);
       }
 
