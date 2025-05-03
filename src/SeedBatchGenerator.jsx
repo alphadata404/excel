@@ -21,27 +21,26 @@ function SeedBatchGenerator() {
 
     for (const block of blocks) {
       let name = "", account = "", ifsc = "", amount = "";
-      const lines = block.split(/\r?\n|\r/);
+      const lines = block.trim().split(/\r?\n|\r/).map(l => l.trim()).filter(Boolean);
 
       for (const line of lines) {
-        const l = line.trim();
+        const lower = line.toLowerCase();
+        if (!name && /name|account holder/.test(lower)) name = line.split(/[:\-]/)[1]?.trim();
+        if (!account && /account|a\/c/.test(lower)) account = line.split(/[:\-]/)[1]?.replace(/\D/g, "").trim();
+        if (!ifsc && /ifsc/.test(lower)) ifsc = line.split(/[:\-]/)[1]?.trim().toUpperCase();
+        if (!amount && /(amount|rs|inr|₹|\d+[kml])/i.test(lower)) amount = parseAmount(line);
 
-        if (/^\D*\d{9,18}\D*$/.test(l)) account ||= l.replace(/\D/g, "");
-        if (/ifsc/i.test(l)) ifsc ||= l.split(/[:\-]/).pop()?.trim().toUpperCase();
-        if (/name|account holder/i.test(l)) name ||= l.split(/[:\-]/)[1]?.trim();
-        if (/account/i.test(l) && !account) account ||= l.split(/[:\-]/)[1]?.replace(/\D/g, "").trim();
-        if (/amount|inr|rs|₹|\d+[kml]/i.test(l)) amount ||= parseAmount(l);
-        if (/^\d{5,}/.test(l)) account ||= l.trim();
-        if (/\d+[kml]?/i.test(l) && !amount) amount ||= parseAmount(l);
+        // Auto-detect based on structure
+        if (!account && /^\d{9,18}$/.test(line)) account = line;
+        if (!ifsc && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(line)) ifsc = line.toUpperCase();
+        if (!amount && /\d+[kml]/i.test(line)) amount = parseAmount(line);
       }
 
-      if (!name) {
-        const tabParts = lines[0].split(/[\t,]+|\s{2,}|\s(?=\d{5,})/);
-        if (tabParts.length === 4) {
-          name = tabParts[0].trim();
-          account = tabParts[1].trim();
-          ifsc = tabParts[2].trim().toUpperCase();
-          amount = parseAmount(tabParts[3]);
+      // Fallback: use first line as name if not matched
+      if (!name && lines.length) {
+        const first = lines[0];
+        if (!/^\d{5,}$/.test(first) && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(first) && !/\d+[kml]/i.test(first)) {
+          name = first;
         }
       }
 
